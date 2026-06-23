@@ -26,7 +26,7 @@ class TaskDatabaseModel(BaseModel):
     channel_id: str = ""
     slack_user_id: str = ""
     timestamp: str = ""
-    created_at: str
+    created_at: str = ""
 
 class DecisionDatabaseModel(BaseModel):
     id: str
@@ -36,5 +36,5 @@ class DecisionDatabaseModel(BaseModel):
     channel_id: str = ""
     slack_user_id: str = ""
     timestamp: str = ""
-    created_at: str
+    created_at: str = ""
 
