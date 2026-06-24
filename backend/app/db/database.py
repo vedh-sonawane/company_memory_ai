@@ -139,7 +139,7 @@ def fetch_recent_items(days: int = 7) -> dict:
     # Fetch recent tasks
     cursor.execute("""
         SELECT * FROM tasks 
-        WHERE created_at >= ?
+        WHERE datetime(created_at) >= datetime(?)
         ORDER BY created_at DESC
     """, (date_threshold_str,))
     tasks = [dict(row) for row in cursor.fetchall()]
@@ -147,7 +147,7 @@ def fetch_recent_items(days: int = 7) -> dict:
     # Fetch recent decisions
     cursor.execute("""
         SELECT * FROM decisions 
-        WHERE created_at >= ?
+        WHERE datetime(created_at) >= datetime(?)
         ORDER BY created_at DESC
     """, (date_threshold_str,))
     decisions = [dict(row) for row in cursor.fetchall()]
