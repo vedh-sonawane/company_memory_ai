@@ -2,6 +2,8 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from app.api.routes import router as api_router
 from app.core.config import settings
 
@@ -35,6 +37,13 @@ app.add_middleware(
 
 # Register endpoints
 app.include_router(api_router)
+
+# Serve static files for the dashboard
+static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+    
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/")
 async def root():
