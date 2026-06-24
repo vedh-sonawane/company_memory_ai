@@ -41,3 +41,10 @@ class DecisionDatabaseModel(BaseModel):
 class SearchResponse(BaseModel):
     tasks: List[TaskDatabaseModel] = Field(default_factory=list)
     decisions: List[DecisionDatabaseModel] = Field(default_factory=list)
+
+class QuestionRequest(BaseModel):
+    question: str = Field(..., description="Natural language question about company knowledge.")
+
+class QuestionResponse(BaseModel):
+    answer: str = Field(..., description="Answer to the question based on company knowledge.")
+    sources: List[str] = Field(default_factory=list, description="Sources used to generate the answer.")

@@ -2,6 +2,7 @@ import sqlite3
 import os
 import logging
 from typing import List, Dict, Any
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -125,3 +126,47 @@ def search_decisions(query: str) -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def fetch_recent_items(days: int = 7) -> dict:
+    """Fetch tasks and decisions from the last N days"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Calculate the date threshold
+    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold_str = date_threshold.strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Fetch recent tasks
+    cursor.execute("""
+        SELECT * FROM tasks 
+        WHERE created_at >= ?
+        ORDER BY created_at DESC
+    """, (date_threshold_str,))
+    tasks = [dict(row) for row in cursor.fetchall()]
+    
+    # Fetch recent decisions
+    cursor.execute("""
+        SELECT * FROM decisions 
+        WHERE created_at >= ?
+        ORDER BY created_at DESC
+    """, (date_threshold_str,))
+    decisions = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    return {"tasks": tasks, "decisions": decisions}
+
+def fetch_upcoming_deadlines() -> List[Dict[str, Any]]:
+    """Fetch tasks with upcoming deadlines"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Fetch tasks with non-empty deadlines
+    cursor.execute("""
+        SELECT * FROM tasks 
+        WHERE deadline != ''
+        ORDER BY created_at DESC
+    """)
+    tasks = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    return tasks

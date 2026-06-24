@@ -8,10 +8,10 @@ from fastapi.responses import PlainTextResponse
 
 import uuid
 from typing import List
-from app.schemas.models import ExtractionRequest, ExtractionResponse, TaskDatabaseModel, DecisionDatabaseModel, SearchResponse
+from app.schemas.models import ExtractionRequest, ExtractionResponse, TaskDatabaseModel, DecisionDatabaseModel, SearchResponse, QuestionRequest, QuestionResponse
 from app.services.extractor import ExtractorService
 from app.core.config import settings
-from app.db.database import insert_task, insert_decision, fetch_all_tasks, fetch_all_decisions, search_tasks, search_decisions
+from app.db.database import insert_task, insert_decision, fetch_all_tasks, fetch_all_decisions, search_tasks, search_decisions, fetch_recent_items, fetch_upcoming_deadlines
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -202,4 +202,182 @@ async def search_items(q: str = Query(..., min_length=1)):
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to search items in database: {str(e)}"
+        )
+
+@router.post("/ask", response_model=QuestionResponse)
+async def ask_question(payload: QuestionRequest, extractor: ExtractorService = Depends(get_extractor)):
+    if not payload.question or not payload.question.strip():
+        raise HTTPException(status_code=400, detail="Question field must not be empty.")
+    
+    try:
+        # First, try to search for relevant items based on keywords in the question
+        # Extract potential keywords (simple approach: split by spaces and remove common words)
+        common_words = {"what", "who", "when", "where", "why", "how", "the", "and", "or", "is", "are", "was", "were"}
+        keywords = [word for word in payload.question.lower().split() if word not in common_words and len(word) > 2]
+        
+        all_tasks = []
+        all_decisions = []
+        
+        # If we have keywords, search for relevant items
+        if keywords:
+            for keyword in keywords:
+                tasks = search_tasks(keyword)
+                decisions = search_decisions(keyword)
+                all_tasks.extend(tasks)
+                all_decisions.extend(decisions)
+        else:
+            # If no keywords, get all items
+            all_tasks = fetch_all_tasks()
+            all_decisions = fetch_all_decisions()
+        
+        # Remove duplicates while preserving order
+        seen_tasks = set()
+        unique_tasks = []
+        for task in all_tasks:
+            if task['id'] not in seen_tasks:
+                seen_tasks.add(task['id'])
+                unique_tasks.append(task)
+        
+        seen_decisions = set()
+        unique_decisions = []
+        for decision in all_decisions:
+            if decision['id'] not in seen_decisions:
+                seen_decisions.add(decision['id'])
+                unique_decisions.append(decision)
+        
+        # Special handling for specific question types
+        if "deadline" in payload.question.lower() or "deadlines" in payload.question.lower():
+            unique_tasks = fetch_upcoming_deadlines()
+        elif "week" in payload.question.lower() or "recent" in payload.question.lower():
+            recent_items = fetch_recent_items()
+            unique_tasks = recent_items["tasks"]
+            unique_decisions = recent_items["decisions"]
+        
+        # If we have relevant items, use them to generate an answer
+        if unique_tasks or unique_decisions:
+            # Prepare context for the LLM
+            context_parts = []
+            
+            if unique_tasks:
+                context_parts.append("TASKS:")
+                for task in unique_tasks[:10]:  # Limit to 10 tasks to avoid context overflow
+                    task_info = f"- Task: {task['task']}"
+                    if task['owner']:
+                        task_info += f" | Owner: {task['owner']}"
+                    if task['deadline']:
+                        task_info += f" | Deadline: {task['deadline']}"
+                    if task['timestamp']:
+                        task_info += f" | Date: {task['timestamp']}"
+                    context_parts.append(task_info)
+            
+            if unique_decisions:
+                context_parts.append("\nDECISIONS:")
+                for decision in unique_decisions[:10]:  # Limit to 10 decisions
+                    decision_info = f"- Decision: {decision['decision']}"
+                    if decision['context']:
+                        decision_info += f" | Context: {decision['context']}"
+                    if decision['timestamp']:
+                        decision_info += f" | Date: {decision['timestamp']}"
+                    context_parts.append(decision_info)
+            
+            context = "\n".join(context_parts)
+            
+            # Create prompt for LLM
+            prompt = f"""
+You are an AI assistant that answers questions about company knowledge based on stored tasks and decisions.
+
+CONTEXT:
+{context}
+
+QUESTION:
+{payload.question}
+
+INSTRUCTIONS:
+- Answer the question using ONLY the information provided in the context above
+- Be concise and direct
+- If the context doesn't contain enough information to answer the question, respond with: "I could not find enough information to answer that question."
+- Include a "Sources" section that lists the relevant items from the context that support your answer
+- Format your response as follows:
+
+Answer:
+[Your answer here]
+
+Sources:
+- [Source 1]
+- [Source 2]
+...
+
+EXAMPLE:
+Answer:
+The team decided to use Stripe for credit card processing.
+
+Sources:
+- Decision: Use Stripe for credit cards | Context: Because of their easy API | Date: 2026-06-23
+"""
+            
+            # Generate response using LLM
+            try:
+                llm_response = extractor.llm_service.generate(prompt, str)
+                if isinstance(llm_response, str):
+                    answer_text = llm_response
+                elif hasattr(llm_response, 'text'):
+                    answer_text = llm_response.text
+                else:
+                    answer_text = str(llm_response)
+                
+                # Extract sources from the answer (simple parsing)
+                lines = answer_text.split('\n')
+                sources = []
+                in_sources = False
+                for line in lines:
+                    if line.startswith("Sources:"):
+                        in_sources = True
+                        continue
+                    if in_sources and line.startswith("- "):
+                        sources.append(line[2:])  # Remove "- " prefix
+                    elif in_sources and not line.strip():
+                        break  # Stop at first empty line after sources
+                
+                # If we couldn't parse sources, create them from the context
+                if not sources:
+                    for task in unique_tasks[:3]:  # Limit to 3 sources
+                        source = f"Task: {task['task']}"
+                        if task['timestamp']:
+                            source += f" | Date: {task['timestamp']}"
+                        sources.append(source)
+                    for decision in unique_decisions[:3]:  # Limit to 3 sources
+                        source = f"Decision: {decision['decision']}"
+                        if decision['timestamp']:
+                            source += f" | Date: {decision['timestamp']}"
+                        sources.append(source)
+                
+                return QuestionResponse(answer=answer_text, sources=sources)
+            except Exception as e:
+                logger.error(f"Error generating answer with LLM: {e}")
+                # Fallback response
+                answer = "I could not find enough information to answer that question."
+                sources = []
+                for task in unique_tasks[:3]:
+                    source = f"Task: {task['task']}"
+                    if task['timestamp']:
+                        source += f" | Date: {task['timestamp']}"
+                    sources.append(source)
+                for decision in unique_decisions[:3]:
+                    source = f"Decision: {decision['decision']}"
+                    if decision['timestamp']:
+                        source += f" | Date: {decision['timestamp']}"
+                    sources.append(source)
+                return QuestionResponse(answer=answer, sources=sources)
+        else:
+            # No relevant items found
+            return QuestionResponse(
+                answer="I could not find enough information to answer that question.",
+                sources=[]
+            )
+            
+    except Exception as e:
+        logger.error(f"Error processing question: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to process question: {str(e)}"
         )
