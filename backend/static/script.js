@@ -7,7 +7,6 @@ const decisionsContainer = document.getElementById('decisions-container');
 const totalTasksEl = document.getElementById('total-tasks');
 const totalDecisionsEl = document.getElementById('total-decisions');
 const recentActivityEl = document.getElementById('recent-activity');
-const lastUpdatedEl = document.getElementById('last-updated');
 const refreshBtn = document.getElementById('refresh-btn');
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');
@@ -155,9 +154,6 @@ function updateSummary(tasks, decisions) {
     const recentDecisions = decisions.filter(decision => isRecent(decision.timestamp));
     const recentCount = recentTasks.length + recentDecisions.length;
     recentActivityEl.textContent = recentCount;
-    
-    // Update last updated time
-    lastUpdatedEl.textContent = new Date().toLocaleString();
 }
 
 // Show loading state
