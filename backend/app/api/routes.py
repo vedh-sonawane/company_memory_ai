@@ -3,15 +3,15 @@ import hmac
 import hashlib
 import time
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks, Query
 from fastapi.responses import PlainTextResponse
 
 import uuid
 from typing import List
-from app.schemas.models import ExtractionRequest, ExtractionResponse, TaskDatabaseModel, DecisionDatabaseModel
+from app.schemas.models import ExtractionRequest, ExtractionResponse, TaskDatabaseModel, DecisionDatabaseModel, SearchResponse
 from app.services.extractor import ExtractorService
 from app.core.config import settings
-from app.db.database import insert_task, insert_decision, fetch_all_tasks, fetch_all_decisions
+from app.db.database import insert_task, insert_decision, fetch_all_tasks, fetch_all_decisions, search_tasks, search_decisions
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -192,4 +192,14 @@ async def get_decisions():
             detail=f"Failed to fetch decisions from database: {str(e)}"
         )
 
-
+@router.get("/search", response_model=SearchResponse)
+async def search_items(q: str = Query(..., min_length=1)):
+    try:
+        tasks = search_tasks(q)
+        decisions = search_decisions(q)
+        return SearchResponse(tasks=tasks, decisions=decisions)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to search items in database: {str(e)}"
+        )

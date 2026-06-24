@@ -14,6 +14,12 @@
             <div class="header-content">
                 <h1><i class="fas fa-brain"></i> Company Memory</h1>
                 <div class="header-controls">
+                    <div class="search-container">
+                        <input type="text" id="search-input" placeholder="Search tasks and decisions...">
+                        <button id="search-btn" class="btn btn-secondary">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
                     <button id="refresh-btn" class="btn btn-secondary">
                         <i class="fas fa-sync-alt"></i> Refresh
                     </button>
@@ -54,6 +60,40 @@
                     <div class="card-content">
                         <h3 id="recent-activity">0</h3>
                         <p>Recent Activity</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Search Results Section -->
+        <section class="search-results-section" id="search-results-section" style="display: none;">
+            <div class="section-header">
+                <h2><i class="fas fa-search"></i> Search Results</h2>
+                <button id="clear-search-btn" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Clear Search
+                </button>
+            </div>
+            <div class="section-content">
+                <div id="search-results-container">
+                    <div class="items-container">
+                        <div class="results-column">
+                            <h3>Tasks</h3>
+                            <div id="search-tasks-container">
+                                <div class="loading-state">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Loading tasks...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="results-column">
+                            <h3>Decisions</h3>
+                            <div id="search-decisions-container">
+                                <div class="loading-state">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Loading decisions...</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

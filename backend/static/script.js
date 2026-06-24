@@ -9,6 +9,16 @@ const totalDecisionsEl = document.getElementById('total-decisions');
 const recentActivityEl = document.getElementById('recent-activity');
 const lastUpdatedEl = document.getElementById('last-updated');
 const refreshBtn = document.getElementById('refresh-btn');
+const searchInput = document.getElementById('search-input');
+const searchBtn = document.getElementById('search-btn');
+const clearSearchBtn = document.getElementById('clear-search-btn');
+const searchResultsSection = document.getElementById('search-results-section');
+const searchTasksContainer = document.getElementById('search-tasks-container');
+const searchDecisionsContainer = document.getElementById('search-decisions-container');
+
+// Current state
+let allTasks = [];
+let allDecisions = [];
 
 // Format timestamp to readable date
 function formatTimestamp(timestamp) {
@@ -98,9 +108,9 @@ function createDecisionCard(decision) {
 }
 
 // Render tasks
-function renderTasks(tasks) {
+function renderTasks(tasks, container = tasksContainer) {
     if (!tasks || tasks.length === 0) {
-        tasksContainer.innerHTML = `
+        container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-tasks"></i>
                 <p>No open tasks found</p>
@@ -109,13 +119,13 @@ function renderTasks(tasks) {
         return;
     }
     
-    tasksContainer.innerHTML = tasks.map(createTaskCard).join('');
+    container.innerHTML = tasks.map(createTaskCard).join('');
 }
 
 // Render decisions
-function renderDecisions(decisions) {
+function renderDecisions(decisions, container = decisionsContainer) {
     if (!decisions || decisions.length === 0) {
-        decisionsContainer.innerHTML = `
+        container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-gavel"></i>
                 <p>No decisions found</p>
@@ -124,7 +134,7 @@ function renderDecisions(decisions) {
         return;
     }
     
-    decisionsContainer.innerHTML = decisions.map(createDecisionCard).join('');
+    container.innerHTML = decisions.map(createDecisionCard).join('');
 }
 
 // Update summary stats
@@ -183,11 +193,13 @@ async function fetchData() {
         const tasksResponse = await fetch(`${API_BASE}/tasks`);
         if (!tasksResponse.ok) throw new Error(`Tasks API error: ${tasksResponse.status}`);
         const tasks = await tasksResponse.json();
+        allTasks = tasks;
         
         // Fetch decisions
         const decisionsResponse = await fetch(`${API_BASE}/decisions`);
         if (!decisionsResponse.ok) throw new Error(`Decisions API error: ${decisionsResponse.status}`);
         const decisions = await decisionsResponse.json();
+        allDecisions = decisions;
         
         // Render data
         renderTasks(tasks);
@@ -200,6 +212,65 @@ async function fetchData() {
     }
 }
 
+// Search functionality
+async function performSearch(query) {
+    if (!query || query.trim() === '') {
+        clearSearch();
+        return;
+    }
+    
+    try {
+        // Show search results section
+        searchResultsSection.style.display = 'block';
+        
+        // Show loading states
+        searchTasksContainer.innerHTML = `
+            <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Searching tasks...</p>
+            </div>
+        `;
+        searchDecisionsContainer.innerHTML = `
+            <div class="loading-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p>Searching decisions...</p>
+            </div>
+        `;
+        
+        // Fetch search results
+        const searchResponse = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+        if (!searchResponse.ok) throw new Error(`Search API error: ${searchResponse.status}`);
+        const results = await searchResponse.json();
+        
+        // Render search results
+        renderTasks(results.tasks, searchTasksContainer);
+        renderDecisions(results.decisions, searchDecisionsContainer);
+        
+    } catch (error) {
+        console.error('Error searching data:', error);
+        searchTasksContainer.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Error searching tasks: ${error.message}</p>
+            </div>
+        `;
+        searchDecisionsContainer.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Error searching decisions: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// Clear search
+function clearSearch() {
+    searchInput.value = '';
+    searchResultsSection.style.display = 'none';
+    renderTasks(allTasks);
+    renderDecisions(allDecisions);
+}
+
 // Initialize dashboard
 function initDashboard() {
     // Load data on page load
@@ -207,6 +278,19 @@ function initDashboard() {
     
     // Set up refresh button
     refreshBtn.addEventListener('click', fetchData);
+    
+    // Set up search functionality
+    searchBtn.addEventListener('click', () => {
+        performSearch(searchInput.value);
+    });
+    
+    searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            performSearch(searchInput.value);
+        }
+    });
+    
+    clearSearchBtn.addEventListener('click', clearSearch);
     
     // Set up auto-refresh every 30 seconds
     setInterval(fetchData, 30000);

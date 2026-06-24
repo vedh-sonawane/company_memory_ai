@@ -97,3 +97,31 @@ def fetch_all_decisions() -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def search_tasks(query: str) -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    sql_query = """
+    SELECT * FROM tasks 
+    WHERE task LIKE ? OR owner LIKE ? OR deadline LIKE ?
+    ORDER BY created_at DESC
+    """
+    search_term = f"%{query}%"
+    cursor.execute(sql_query, (search_term, search_term, search_term))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def search_decisions(query: str) -> List[Dict[str, Any]]:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    sql_query = """
+    SELECT * FROM decisions 
+    WHERE decision LIKE ? OR context LIKE ?
+    ORDER BY created_at DESC
+    """
+    search_term = f"%{query}%"
+    cursor.execute(sql_query, (search_term, search_term))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

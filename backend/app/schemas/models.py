@@ -38,3 +38,6 @@ class DecisionDatabaseModel(BaseModel):
     timestamp: str = ""
     created_at: str = ""
 
+class SearchResponse(BaseModel):
+    tasks: List[TaskDatabaseModel] = Field(default_factory=list)
+    decisions: List[DecisionDatabaseModel] = Field(default_factory=list)
